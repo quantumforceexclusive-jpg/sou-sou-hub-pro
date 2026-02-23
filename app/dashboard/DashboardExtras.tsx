@@ -45,25 +45,25 @@ export function DashboardStatsRow() {
 
     return (
         <div className="mb-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="rounded-2xl p-5 border bg-white" style={{ borderColor: "var(--border)" }}>
+            <div className="rounded-2xl p-5 border bg-card text-card-foreground" style={{ borderColor: "var(--border)" }}>
                 <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>Cycle Progress</p>
                 <h3 className="text-xl font-bold" style={{ color: "var(--foreground)" }}>
-                    Month {stats.currentMonthOfCycle} <span className="text-sm font-normal text-gray-400">of {stats.memberCount}</span>
+                    Month {stats.currentMonthOfCycle} <span className="text-sm font-normal" style={{ color: "var(--muted-foreground)" }}>of {stats.memberCount}</span>
                 </h3>
             </div>
-            <div className="rounded-2xl p-5 border bg-white" style={{ borderColor: "var(--border)" }}>
+            <div className="rounded-2xl p-5 border bg-card text-card-foreground" style={{ borderColor: "var(--border)" }}>
                 <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>Next Payout</p>
                 <h3 className="text-xl font-bold truncate" style={{ color: "var(--foreground)" }}>
                     {stats.nextPayoutMember || "All Paid!"}
                 </h3>
             </div>
-            <div className="rounded-2xl p-5 border bg-white" style={{ borderColor: "var(--border)" }}>
+            <div className="rounded-2xl p-5 border bg-card text-card-foreground" style={{ borderColor: "var(--border)" }}>
                 <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>Total Pool</p>
                 <h3 className="text-xl font-bold" style={{ color: "var(--success)" }}>
                     ${stats.totalMonthlyPool.toLocaleString()}
                 </h3>
             </div>
-            <div className="rounded-2xl p-5 border bg-white" style={{ borderColor: "var(--border)" }}>
+            <div className="rounded-2xl p-5 border bg-card text-card-foreground" style={{ borderColor: "var(--border)" }}>
                 <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>Next Release</p>
                 <h3 className="text-xl font-bold" style={{ color: "var(--primary)" }}>
                     {stats.nextPayoutDate ? timeLeft || "Calculating..." : "N/A"}
@@ -91,7 +91,7 @@ export function BatchSchedule({ batchId, isAdmin }: { batchId: Id<"batches">, is
     return (
         <div className="mt-6 border-t pt-4" style={{ borderColor: "var(--border)" }}>
             <h4 className="text-sm font-semibold mb-3" style={{ color: "var(--foreground)" }}>Payout Schedule</h4>
-            <div className="bg-white rounded-lg border overflow-hidden" style={{ borderColor: "var(--border)" }}>
+            <div className="bg-card text-card-foreground rounded-lg border overflow-hidden" style={{ borderColor: "var(--border)" }}>
                 <table className="w-full text-left text-xs">
                     <thead style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}>
                         <tr>
@@ -140,28 +140,28 @@ function FairnessPanel({ batchId, isAdmin }: { batchId: Id<"batches">, isAdmin: 
     if (!fairness) return null;
 
     return (
-        <div className="mt-4 p-3 rounded-lg border bg-slate-50" style={{ borderColor: "var(--border)" }}>
+        <div className="mt-4 p-3 rounded-lg border bg-slate-50 dark:bg-slate-800/50" style={{ borderColor: "var(--border)" }}>
             <div className="flex items-center gap-2 mb-2">
                 <span className="text-xl">⚖️</span>
-                <h4 className="text-sm font-semibold text-slate-700">Fairness & Transparency</h4>
+                <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Fairness & Transparency</h4>
             </div>
 
-            <div className="text-xs text-slate-600 space-y-2">
+            <div className="text-xs text-slate-600 dark:text-slate-400 space-y-2">
                 <p>
-                    <span className="font-semibold text-slate-800">Commitment Hash: </span>
-                    <span className="font-mono text-[10px] break-all bg-slate-200 px-1 py-0.5 rounded">{fairness.commitHash}</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">Commitment Hash: </span>
+                    <span className="font-mono text-[10px] break-all bg-slate-200 dark:bg-slate-700 px-1 py-0.5 rounded text-slate-800 dark:text-slate-200">{fairness.commitHash}</span>
                 </p>
 
                 {fairness.isRevealed ? (
                     <>
                         <p>
-                            <span className="font-semibold text-emerald-700">Seed Revealed: </span>
-                            <span className="font-mono text-[10px] break-all bg-emerald-50 px-1 py-0.5 rounded text-emerald-700">{fairness.seed}</span>
+                            <span className="font-semibold text-emerald-700 dark:text-emerald-400">Seed Revealed: </span>
+                            <span className="font-mono text-[10px] break-all bg-emerald-50 dark:bg-emerald-900/30 px-1 py-0.5 rounded text-emerald-700 dark:text-emerald-400">{fairness.seed}</span>
                         </p>
-                        <p className="italic text-slate-500 mt-2">{fairness.verificationInstructions}</p>
+                        <p className="italic text-slate-500 dark:text-slate-400 mt-2">{fairness.verificationInstructions}</p>
                     </>
                 ) : (
-                    <p className="italic text-slate-500">Seed not revealed yet. Commitment hash guarantees schedule was locked deterministically at close.</p>
+                    <p className="italic text-slate-500 dark:text-slate-400">Seed not revealed yet. Commitment hash guarantees schedule was locked deterministically at close.</p>
                 )}
 
                 {isAdmin && !fairness.isRevealed && (
