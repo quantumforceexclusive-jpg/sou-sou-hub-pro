@@ -6,6 +6,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface AuthCardProps {
     onSuccess?: () => void;
@@ -17,6 +18,7 @@ export function AuthCard({ onSuccess }: AuthCardProps) {
     const [password, setPassword] = useState("");
     const [name, setName] = useState("");
     const [inviteCode, setInviteCode] = useState("");
+    const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
     const [loading, setLoading] = useState(false);
     const { signIn } = useAuthActions();
     const createOrGetUser = useMutation(api.users.createOrGetUser);
@@ -36,6 +38,11 @@ export function AuthCard({ onSuccess }: AuthCardProps) {
                 }
                 if (!inviteCode.trim()) {
                     toast.error("Please enter an invite code to sign up.");
+                    setLoading(false);
+                    return;
+                }
+                if (!disclaimerAccepted) {
+                    toast.error("Please read and accept the disclaimer to register.");
                     setLoading(false);
                     return;
                 }
@@ -208,6 +215,23 @@ export function AuthCard({ onSuccess }: AuthCardProps) {
                         disabled={loading}
                     />
                 </div>
+
+                {mode === "signUp" && (
+                    <div className="flex items-start space-x-3 pt-2">
+                        <Checkbox
+                            id="disclaimer"
+                            checked={disclaimerAccepted}
+                            onCheckedChange={(checked) => setDisclaimerAccepted(checked as boolean)}
+                            className="mt-1"
+                        />
+                        <label
+                            htmlFor="disclaimer"
+                            className="text-xs sm:text-sm text-muted-foreground leading-tight cursor-pointer"
+                        >
+                            I understand that Sou Sou Hub Pro does not hold or manage funds.
+                        </label>
+                    </div>
+                )}
 
                 <button
                     type="submit"

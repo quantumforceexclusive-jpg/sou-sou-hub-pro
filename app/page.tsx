@@ -10,6 +10,7 @@ import { HowItWorksSection } from "@/components/HowItWorksSection";
 import { LogoIcon } from "@/components/LogoIcon";
 import { PalmLeaves } from "@/components/PalmLeaves";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { FooterDisclaimer } from "@/components/FooterDisclaimer";
 
 export default function HomePage() {
   const { isAuthenticated, isLoading } = useConvexAuth();
@@ -203,6 +204,7 @@ export default function HomePage() {
       <FeaturesSection scrollToAuth={scrollToAuth} />
       <HowItWorksSection scrollToAuth={scrollToAuth} scrollToFeatures={scrollToFeatures} />
       <ContactSection />
+      <FooterDisclaimer />
     </div>
   );
 }
