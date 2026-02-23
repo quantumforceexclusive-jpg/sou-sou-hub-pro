@@ -130,7 +130,7 @@ export default function HomePage() {
               >
                 A Modern
                 <br />
-                Platform for
+                Platform for your
                 <br />
                 Sou-Sou Funds
               </h1>
