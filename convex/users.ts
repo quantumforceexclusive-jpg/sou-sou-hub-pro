@@ -10,6 +10,7 @@ export const createOrGetUser = mutation({
     args: {
         name: v.string(),
         email: v.string(),
+        inviteCode: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const authUserId = await getAuthUserId(ctx);
@@ -29,6 +30,24 @@ export const createOrGetUser = mutation({
             return existing._id;
         }
 
+        // Must provide an invite code for a new account.
+        if (!args.inviteCode) {
+            throw new Error("An invite code is required to sign up.");
+        }
+
+        // Validate invite code
+        const encoder = new TextEncoder();
+        const data = encoder.encode(args.inviteCode.trim().toUpperCase());
+        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const submittedHash = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+
+        const invite = await ctx.db.query("inviteCodes").withIndex("by_codeHash", q => q.eq("codeHash", submittedHash)).unique();
+
+        if (!invite || invite.used) {
+            throw new Error("Invalid or already used invite code.");
+        }
+
         // Create new user profile
         const now = Date.now();
         const profileId = await ctx.db.insert("profiles", {
@@ -40,8 +59,39 @@ export const createOrGetUser = mutation({
             updatedAt: now,
         });
 
+        // Mark invite code as used
+        await ctx.db.patch(invite._id, {
+            used: true,
+            usedBy: profileId,
+            usedAt: now,
+        });
+
         return profileId;
     },
+});
+
+/**
+ * Validate an invite code before allowing a user to sign up.
+ */
+export const validateInviteCode = query({
+    args: { code: v.string() },
+    handler: async (ctx, args) => {
+        if (!args.code.trim()) return false;
+
+        const encoder = new TextEncoder();
+        const data = encoder.encode(args.code.trim().toUpperCase());
+        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const submittedHash = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+
+        const invite = await ctx.db.query("inviteCodes").withIndex("by_codeHash", q => q.eq("codeHash", submittedHash)).unique();
+
+        if (!invite || invite.used) {
+            return false;
+        }
+
+        return true;
+    }
 });
 
 export const getMe = query({

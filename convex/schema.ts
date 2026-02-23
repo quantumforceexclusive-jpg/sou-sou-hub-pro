@@ -132,4 +132,19 @@ export default defineSchema({
     createdAt: v.number(),
     status: v.union(v.literal("new"), v.literal("read")),
   }).index("by_status", ["status"]),
+
+  // Invite Codes for new member registration
+  inviteCodes: defineTable({
+    code: v.string(), // Plaintext code (stored in db or hash, but assignment says "encrypted") - Let's store hash and encrypted code or just unique code. "Each code will be encrypted and unique to that member it was assigned to".
+    // Wait, let's keep it simple first. "encrypted and unique to that member it was assigned to" -> usually a hashed code, salt if necessary. But to map to a member, we can just store the 'assignedEmail' or just the code string because the admin generates it.
+    codeHash: v.string(),
+    assignedToEmail: v.optional(v.string()), // Optionally lock to a specific email
+    createdBy: v.id("profiles"), // The admin who created it
+    used: v.boolean(),
+    usedBy: v.optional(v.id("profiles")),
+    usedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_codeHash", ["codeHash"])
+    .index("by_assignedToEmail", ["assignedToEmail"]),
 });

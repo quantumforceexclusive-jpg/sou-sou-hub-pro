@@ -356,3 +356,57 @@ export const verifyLeaveCode = mutation({
         return { success: true };
     },
 });
+
+/**
+ * Admin: Generate a one-time use invite code for new members to sign up.
+ */
+export const generateSignUpInviteCode = mutation({
+    args: {},
+    handler: async (ctx) => {
+        const admin = await requireAdmin(ctx);
+
+        // Generate the encrypted-format code
+        const code = generateEncryptedCode(); // Reuse the same format or adjust if needed.
+        const codeHash = await sha256(code);
+
+        await ctx.db.insert("inviteCodes", {
+            code,
+            codeHash,
+            createdBy: admin._id,
+            used: false,
+            createdAt: Date.now(),
+        });
+
+        return { code };
+    },
+});
+
+/**
+ * Admin: List all sign-up invite codes.
+ */
+export const listSignUpInviteCodes = query({
+    args: {},
+    handler: async (ctx) => {
+        await requireAdmin(ctx);
+
+        const codes = await ctx.db.query("inviteCodes").collect();
+
+        // Enrich with who used it
+        const enriched = await Promise.all(
+            codes.map(async (c) => {
+                let usedByName = null;
+                if (c.usedBy) {
+                    const user = await ctx.db.get(c.usedBy);
+                    usedByName = user?.name ?? "Unknown";
+                }
+                return {
+                    ...c,
+                    usedByName,
+                };
+            })
+        );
+
+        // Sort descending
+        return enriched.sort((a, b) => b.createdAt - a.createdAt);
+    },
+});

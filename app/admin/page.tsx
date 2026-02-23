@@ -24,6 +24,7 @@ export default function AdminPage() {
     const updateUserRole = useMutation(api.admin.updateUserRole);
     const deleteUser = useMutation(api.admin.deleteUser);
     const generateLeaveCode = useMutation(api.admin.generateLeaveCode);
+    const generateSignUpInviteCode = useMutation(api.admin.generateSignUpInviteCode);
     const adminUpdateBatchSettings = useMutation(api.batches.adminUpdateBatchSettings);
     const adminCloseBatch = useMutation(api.batches.adminCloseBatch);
     const adminCreateBatch = useMutation(api.batches.adminCreateBatch);
@@ -38,9 +39,11 @@ export default function AdminPage() {
     const [savingRole, setSavingRole] = useState(false);
     const [deletingUserId, setDeletingUserId] = useState<Id<"profiles"> | null>(null);
 
-    // Leave code generation
+    // Leave / Invite code generation
     const [generatingCode, setGeneratingCode] = useState(false);
     const [generatedCodes, setGeneratedCodes] = useState<{ code: string; batchNumber: number }[]>([]);
+    const [generatingInviteCode, setGeneratingInviteCode] = useState(false);
+    const [generatedInviteCodes, setGeneratedInviteCodes] = useState<string[]>([]);
     const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
     // Batch settings
@@ -51,7 +54,7 @@ export default function AdminPage() {
     const [creatingBatch, setCreatingBatch] = useState(false);
 
     // Active tab
-    const [activeTab, setActiveTab] = useState<"roles" | "batches" | "codes" | "requests" | "banking" | "payments">("roles");
+    const [activeTab, setActiveTab] = useState<"roles" | "batches" | "codes" | "inviteCodes" | "requests" | "banking" | "payments">("roles");
 
     // Banking state
     const [bankFirstName, setBankFirstName] = useState("");
@@ -124,6 +127,19 @@ export default function AdminPage() {
             toast.error(error instanceof Error ? error.message : "Failed to generate code");
         } finally {
             setGeneratingCode(false);
+        }
+    };
+
+    const handleGenerateInviteCode = async () => {
+        setGeneratingInviteCode(true);
+        try {
+            const result = await generateSignUpInviteCode();
+            setGeneratedInviteCodes((prev) => [result.code, ...prev]);
+            toast.success(`Sign-up invite code generated!`);
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Failed to generate invite code");
+        } finally {
+            setGeneratingInviteCode(false);
         }
     };
 
@@ -204,6 +220,7 @@ export default function AdminPage() {
         { id: "batches" as const, label: "Batch Settings", icon: "📦" },
         { id: "banking" as const, label: "Banking", icon: "🏦" },
         { id: "payments" as const, label: "Payments", icon: "💳" },
+        { id: "inviteCodes" as const, label: "Invite Codes", icon: "🔑" },
         { id: "codes" as const, label: "Leave Codes", icon: "🔐" },
         { id: "requests" as const, label: "Leave Requests", icon: "📋" },
     ];
@@ -546,6 +563,68 @@ export default function AdminPage() {
                     </div>
                 )}
 
+                {/* ===== TAB: Invite Codes ===== */}
+                {activeTab === "inviteCodes" && (
+                    <div className="space-y-6">
+                        <div>
+                            <h2 className="text-xl font-semibold mb-1" style={{ color: "var(--foreground)" }}>
+                                Sign-Up Invite Codes
+                            </h2>
+                            <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+                                Generate one-time use invite codes required for new members to register.
+                            </p>
+                        </div>
+
+                        {/* Generate section */}
+                        <div className="rounded-xl p-6 border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                            <h3 className="text-base font-semibold mb-4" style={{ color: "var(--foreground)" }}>
+                                Generate New Invite Code
+                            </h3>
+                            <button
+                                onClick={handleGenerateInviteCode}
+                                disabled={generatingInviteCode}
+                                className="px-5 py-3 rounded-xl text-sm font-semibold transition-all hover:shadow-md"
+                                style={{
+                                    background: "var(--primary)",
+                                    color: "var(--card)",
+                                    opacity: generatingInviteCode ? 0.6 : 1,
+                                }}>
+                                {generatingInviteCode ? "Generating..." : "🔑 Generate Sign-Up Code"}
+                            </button>
+                        </div>
+
+                        {/* Generated codes display */}
+                        {generatedInviteCodes.length > 0 && (
+                            <div className="space-y-3">
+                                <h3 className="text-base font-semibold" style={{ color: "var(--foreground)" }}>
+                                    Generated Codes (this session)
+                                </h3>
+                                {generatedInviteCodes.map((code, i) => (
+                                    <div key={i} className="rounded-xl p-5 border flex items-center justify-between gap-4"
+                                        style={{ background: "var(--muted)", borderColor: "var(--primary)" }}>
+                                        <div>
+                                            <p className="font-mono text-lg font-bold tracking-widest" style={{ color: "var(--foreground)" }}>
+                                                {code}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => handleCopyCode(code)}
+                                            className="px-4 py-2 rounded-lg text-xs font-semibold transition-all"
+                                            style={{
+                                                background: copiedCode === code ? "var(--success)" : "var(--primary)",
+                                                color: "var(--card)",
+                                            }}>
+                                            {copiedCode === code ? "✓ Copied" : "Copy"}
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <SignUpInviteCodeHistory />
+                    </div>
+                )}
+
                 {/* ===== TAB: Leave Codes ===== */}
                 {activeTab === "codes" && (
                     <div className="space-y-6">
@@ -808,6 +887,46 @@ export default function AdminPage() {
 }
 
 // ——— Sub-components ———
+
+function SignUpInviteCodeHistory() {
+    const codes = useQuery(api.admin.listSignUpInviteCodes);
+
+    if (!codes || codes.length === 0) return null;
+
+    return (
+        <div className="rounded-xl p-5 border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+            <h4 className="text-sm font-semibold mb-3" style={{ color: "var(--foreground)" }}>
+                Sign-up Code History
+            </h4>
+            <div className="space-y-2">
+                {codes.map((c) => (
+                    <div key={c._id} className="flex items-center justify-between text-xs py-2 border-b last:border-b-0"
+                        style={{ borderColor: "var(--border)" }}>
+                        <div className="flex items-center gap-3">
+                            <span className="font-mono font-medium tracking-wider" style={{ color: "var(--foreground)" }}>
+                                {c.code}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {c.used ? (
+                                <span className="px-2 py-1 rounded text-xs font-medium" style={{ background: "var(--destructive)", color: "var(--destructive-foreground)" }}>
+                                    Used{c.usedByName ? ` by ${c.usedByName}` : ""}
+                                </span>
+                            ) : (
+                                <span className="px-2 py-1 rounded text-xs font-medium" style={{ background: "var(--success)", color: "var(--success-foreground)" }}>
+                                    Available
+                                </span>
+                            )}
+                            <span style={{ color: "var(--muted-foreground)" }}>
+                                {new Date(c.createdAt).toLocaleDateString()}
+                            </span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
 
 function LeaveCodeHistory({ batchId, batchNumber }: { batchId: Id<"batches">; batchNumber: number }) {
     const codes = useQuery(api.admin.listLeaveCodes, { batchId });

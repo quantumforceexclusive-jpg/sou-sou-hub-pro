@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -16,9 +16,11 @@ export function AuthCard({ onSuccess }: AuthCardProps) {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [name, setName] = useState("");
+    const [inviteCode, setInviteCode] = useState("");
     const [loading, setLoading] = useState(false);
     const { signIn } = useAuthActions();
     const createOrGetUser = useMutation(api.users.createOrGetUser);
+    const validateInviteCode = useQuery(api.users.validateInviteCode, { code: inviteCode });
     const router = useRouter();
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -29,6 +31,16 @@ export function AuthCard({ onSuccess }: AuthCardProps) {
             if (mode === "signUp") {
                 if (!name.trim()) {
                     toast.error("Please enter your name.");
+                    setLoading(false);
+                    return;
+                }
+                if (!inviteCode.trim()) {
+                    toast.error("Please enter an invite code to sign up.");
+                    setLoading(false);
+                    return;
+                }
+                if (validateInviteCode === false) {
+                    toast.error("Invalid or already used invite code.");
                     setLoading(false);
                     return;
                 }
@@ -54,7 +66,8 @@ export function AuthCard({ onSuccess }: AuthCardProps) {
             for (let i = 0; i < 8; i++) {
                 const result = await createOrGetUser({
                     name: mode === "signUp" ? name.trim() : email.split("@")[0],
-                    email
+                    email,
+                    inviteCode: mode === "signUp" ? inviteCode.trim() : undefined,
                 });
                 if (result !== null) {
                     profileCreated = true;
@@ -127,6 +140,28 @@ export function AuthCard({ onSuccess }: AuthCardProps) {
                             onChange={(e) => setName(e.target.value)}
                             className="auth-input w-full"
                             placeholder="Enter your full name"
+                            required
+                            disabled={loading}
+                        />
+                    </div>
+                )}
+
+                {mode === "signUp" && (
+                    <div>
+                        <label
+                            htmlFor="inviteCode"
+                            className="block text-sm font-medium mb-1.5"
+                            style={{ color: "var(--foreground)" }}
+                        >
+                            Invite code
+                        </label>
+                        <input
+                            id="inviteCode"
+                            type="text"
+                            value={inviteCode}
+                            onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                            className="auth-input w-full"
+                            placeholder="Enter one-time invite code"
                             required
                             disabled={loading}
                         />
