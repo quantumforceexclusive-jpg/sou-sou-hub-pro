@@ -74,14 +74,16 @@ export function DashboardStatsRow() {
 }
 
 export function BatchSchedule({ batchId, isAdmin }: { batchId: Id<"batches">, isAdmin: boolean }) {
-    const schedule = useQuery(api.batches.getBatchPayoutSchedule, { batchId });
+    const data = useQuery(api.batches.getBatchPayoutSchedule, { batchId });
     const markPaid = useMutation(api.batches.adminMarkPayoutPaid);
 
-    if (!schedule || schedule.length === 0) return null;
+    if (!data || !data.members || data.members.length === 0) return null;
 
-    const handleMarkPaid = async (payoutMonth: number) => {
+    const schedule = data.members;
+
+    const handleMarkPaid = async (memberId: Id<"batchMembers">) => {
         try {
-            await markPaid({ batchId, payoutMonth });
+            await markPaid({ batchId, memberId });
             toast.success("Marked paid successfully.");
         } catch (e: any) {
             toast.error(e.message);
@@ -90,33 +92,44 @@ export function BatchSchedule({ batchId, isAdmin }: { batchId: Id<"batches">, is
 
     return (
         <div className="mt-6 border-t pt-4" style={{ borderColor: "var(--border)" }}>
-            <h4 className="text-sm font-semibold mb-3" style={{ color: "var(--foreground)" }}>Payout Schedule</h4>
+            <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>Payout Schedule</h4>
+                {data.payoutAssignmentMode && (
+                    <span className="text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-full"
+                        style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}>
+                        Mode: {data.payoutAssignmentMode === "manual_selection" ? "Manual" : "Randomized"}
+                    </span>
+                )}
+            </div>
+
             <div className="bg-card text-card-foreground rounded-lg border overflow-hidden" style={{ borderColor: "var(--border)" }}>
                 <table className="w-full text-left text-xs">
                     <thead style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}>
                         <tr>
-                            <th className="px-3 py-2 font-medium">Month</th>
+                            <th className="px-3 py-2 font-medium">Payout</th>
                             <th className="px-3 py-2 font-medium">Member</th>
                             <th className="px-3 py-2 font-medium">Status</th>
                             {isAdmin && <th className="px-3 py-2 font-medium text-right">Admin</th>}
                         </tr>
                     </thead>
                     <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
-                        {schedule.map((row) => (
+                        {schedule.map((row: any) => (
                             <tr key={row.displayName} style={{ background: row.payoutStatus === "paid" ? "var(--muted)" : "transparent" }}>
-                                <td className="px-3 py-2 font-medium" style={{ color: "var(--foreground)" }}>{row.payoutMonth ?? "-"}</td>
+                                <td className="px-3 py-2 font-medium" style={{ color: "var(--foreground)" }}>
+                                    {row.payoutLabel}
+                                </td>
                                 <td className="px-3 py-2" style={{ color: "var(--muted-foreground)" }}>{row.displayName}</td>
                                 <td className="px-3 py-2">
                                     {row.payoutStatus === "paid" ? (
                                         <span className="text-green-600 font-medium">Paid</span>
                                     ) : (
-                                        <span className="text-amber-600 font-medium">{row.payoutMonth ? "Pending" : "Waiting for close"}</span>
+                                        <span className="text-amber-600 font-medium">{(row.payoutMonth || row.payoutMonthIndex) ? "Pending" : "Waiting for close"}</span>
                                     )}
                                 </td>
                                 {isAdmin && (
                                     <td className="px-3 py-2 text-right">
-                                        {row.payoutStatus !== "paid" && row.payoutMonth ? (
-                                            <button onClick={() => handleMarkPaid(row.payoutMonth!)} className="text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded">
+                                        {row.payoutStatus !== "paid" && (row.payoutMonth || row.payoutMonthIndex) ? (
+                                            <button onClick={() => handleMarkPaid(row._id)} className="text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded">
                                                 Mark Paid
                                             </button>
                                         ) : null}

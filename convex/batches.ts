@@ -197,14 +197,28 @@ export const getMyMembershipAndDashboardStats = query({
                 currentMonthOfCycle = Math.min(Math.max(monthDiff + 1, 1), memberCount);
 
                 // Find next unpaid member
-                const sorted = members.filter(x => !!x.payoutMonth).sort((a, b) => a.payoutMonth! - b.payoutMonth!);
+                const sorted = members.filter(x => !!x.payoutMonth || !!x.payoutMonthIndex).sort((a, b) => {
+                    if (a.payoutMonthIndex && b.payoutMonthIndex) {
+                        if (a.payoutMonthIndex !== b.payoutMonthIndex) return a.payoutMonthIndex - b.payoutMonthIndex;
+                        return (a.payoutRoundIndex ?? 0) - (b.payoutRoundIndex ?? 0);
+                    }
+                    if (a.payoutMonth && b.payoutMonth) return a.payoutMonth - b.payoutMonth;
+                    return a.memberNumber - b.memberNumber;
+                });
                 const nextUnpaid = sorted.find(x => x.payoutStatus !== "paid");
                 if (nextUnpaid) {
-                    nextPayoutMember = `${nextUnpaid.displayName} (Month ${nextUnpaid.payoutMonth})`;
+                    const monthsStr = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                    if (nextUnpaid.payoutMonthIndex) {
+                        const mStr = monthsStr[nextUnpaid.payoutMonthIndex - 1];
+                        nextPayoutMember = `${nextUnpaid.displayName} (${mStr}${nextUnpaid.payoutRoundIndex ? ' - R' + nextUnpaid.payoutRoundIndex : ''})`;
+                    } else {
+                        nextPayoutMember = `${nextUnpaid.displayName} (Month ${nextUnpaid.payoutMonth})`;
+                    }
 
                     // calculate next payout date using cycleStartDate + offset (1st of the resulting month)
                     const payoutDate = new Date(batch.cycleStartDate);
-                    payoutDate.setMonth(payoutDate.getMonth() + (nextUnpaid.payoutMonth ?? 1) - 1);
+                    const offsetMonth = nextUnpaid.payoutMonthIndex ? nextUnpaid.payoutMonthIndex : (nextUnpaid.payoutMonth ?? 1);
+                    payoutDate.setMonth(payoutDate.getMonth() + offsetMonth - 1);
                     // Payout day rule: 1st of each month at 09:00 POS time (UTC-4)
                     payoutDate.setDate(1);
                     payoutDate.setUTCHours(13, 0, 0, 0); // 13:00 UTC is 09:00 in America/Port_of_Spain
@@ -562,10 +576,10 @@ export const adminCloseBatch = mutation({
 });
 
 /**
- * Admin-only: Mark a member's payout month as paid.
+ * Admin-only: Mark a member's payout as paid.
  */
 export const adminMarkPayoutPaid = mutation({
-    args: { batchId: v.id("batches"), payoutMonth: v.number() },
+    args: { batchId: v.id("batches"), memberId: v.id("batchMembers") },
     handler: async (ctx, args) => {
         const authUserId = await getAuthUserId(ctx);
         if (!authUserId) throw new Error("Not authenticated");
@@ -579,13 +593,10 @@ export const adminMarkPayoutPaid = mutation({
             throw new Error("Unauthorized. Admin access required.");
         }
 
-        const member = await ctx.db
-            .query("batchMembers")
-            .withIndex("by_batchId", (q) => q.eq("batchId", args.batchId))
-            .filter((q) => q.eq(q.field("payoutMonth"), args.payoutMonth))
-            .unique();
-
-        if (!member) throw new Error("Payout month not found in this batch.");
+        const member = await ctx.db.get(args.memberId);
+        if (!member || member.batchId !== args.batchId) {
+            throw new Error("Payout member not found in this batch.");
+        }
 
         await ctx.db.patch(member._id, {
             payoutStatus: "paid",
@@ -630,31 +641,214 @@ export const adminRevealFairnessSeed = mutation({
 });
 
 /**
- * Get payout schedule for an active or closed batch.
+ * Get payout availability for the current open batch (supports monthly selection).
  */
-export const getBatchPayoutSchedule = query({
-    args: { batchId: v.id("batches") },
+export const getOpenBatchPayoutAvailability = query({
+    args: {},
+    handler: async (ctx) => {
+        const authUserId = await getAuthUserId(ctx);
+        if (!authUserId) return null;
+
+        const openBatches = await ctx.db
+            .query("batches")
+            .withIndex("by_status", (q) => q.eq("status", "open"))
+            .collect();
+
+        if (openBatches.length === 0) return null;
+        const openBatch = openBatches.reduce((latest, batch) =>
+            batch.number > latest.number ? batch : latest
+        );
+
+        const members = await ctx.db
+            .query("batchMembers")
+            .withIndex("by_batchId", (q) => q.eq("batchId", openBatch._id))
+            .collect();
+
+        const memberCount = members.length;
+        const roundCount = Math.max(1, Math.ceil(memberCount / 12));
+
+        const availabilityByMonth: Record<number, { total: number, taken: number, remaining: number }> = {};
+        for (let m = 1; m <= 12; m++) {
+            availabilityByMonth[m] = { total: roundCount, taken: 0, remaining: roundCount };
+        }
+
+        for (const m of members) {
+            if (m.requestedMonthIndex) {
+                if (availabilityByMonth[m.requestedMonthIndex]) {
+                    availabilityByMonth[m.requestedMonthIndex].taken += 1;
+                    availabilityByMonth[m.requestedMonthIndex].remaining -= 1;
+                }
+            }
+        }
+
+        const profile = await ctx.db
+            .query("profiles")
+            .withIndex("by_authUserId", (q) => q.eq("authUserId", authUserId))
+            .unique();
+
+        let myReservation = null;
+        if (profile) {
+            const me = members.find(m => m.userId === profile._id);
+            if (me && me.requestedMonthIndex) {
+                myReservation = {
+                    monthIndex: me.requestedMonthIndex,
+                    roundIndex: me.requestedRoundIndex,
+                };
+            }
+        }
+
+        return {
+            batchId: openBatch._id,
+            memberCount,
+            roundCount,
+            availabilityByMonth,
+            myReservation,
+        };
+    },
+});
+
+/**
+ * Request a specific payout month
+ */
+export const setRequestedPayoutMonth = mutation({
+    args: { batchId: v.id("batches"), monthIndex: v.number() },
     handler: async (ctx, args) => {
         const authUserId = await getAuthUserId(ctx);
-        if (!authUserId) return [];
+        if (!authUserId) throw new Error("Not authenticated");
+
+        if (args.monthIndex < 1 || args.monthIndex > 12) throw new Error("Invalid month");
+
+        const profile = await ctx.db
+            .query("profiles")
+            .withIndex("by_authUserId", (q) => q.eq("authUserId", authUserId))
+            .unique();
+        if (!profile) throw new Error("Profile not found");
+
+        const batch = await ctx.db.get(args.batchId);
+        if (!batch) throw new Error("Batch not found");
+        if (batch.status !== "open") throw new Error("Batch is not open");
 
         const members = await ctx.db
             .query("batchMembers")
             .withIndex("by_batchId", (q) => q.eq("batchId", args.batchId))
             .collect();
 
-        // Sort by payoutMonth (if locked) or just by memberNumber
+        const me = members.find(m => m.userId === profile._id);
+        if (!me) throw new Error("You are not a member of this batch");
+
+        const memberCount = members.length;
+        const roundCount = Math.max(1, Math.ceil(memberCount / 12));
+
+        const takenRounds = members
+            .filter(m => m.requestedMonthIndex === args.monthIndex && m._id !== me._id)
+            .map(m => m.requestedRoundIndex)
+            .filter(Boolean) as number[];
+
+        let foundRoundIndex = null;
+        for (let r = 1; r <= roundCount; r++) {
+            if (!takenRounds.includes(r)) {
+                foundRoundIndex = r;
+                break;
+            }
+        }
+
+        if (!foundRoundIndex) {
+            throw new Error("Month is fully booked");
+        }
+
+        await ctx.db.patch(me._id, {
+            requestedMonthIndex: args.monthIndex,
+            requestedRoundIndex: foundRoundIndex,
+        });
+
+        return { success: true, monthIndex: args.monthIndex, roundIndex: foundRoundIndex };
+    },
+});
+
+export const clearRequestedPayoutMonth = mutation({
+    args: { batchId: v.id("batches") },
+    handler: async (ctx, args) => {
+        const authUserId = await getAuthUserId(ctx);
+        if (!authUserId) throw new Error("Not authenticated");
+
+        const profile = await ctx.db
+            .query("profiles")
+            .withIndex("by_authUserId", (q) => q.eq("authUserId", authUserId))
+            .unique();
+        if (!profile) throw new Error("Profile not found");
+
+        const me = await ctx.db
+            .query("batchMembers")
+            .withIndex("by_batchId_userId", (q) =>
+                q.eq("batchId", args.batchId).eq("userId", profile._id)
+            )
+            .unique();
+        if (!me) throw new Error("You are not a member of this batch");
+
+        await ctx.db.patch(me._id, {
+            requestedMonthIndex: undefined,
+            requestedRoundIndex: undefined,
+        });
+
+        return { success: true };
+    },
+});
+
+/**
+ * Get payout schedule for an active or closed batch.
+ */
+export const getBatchPayoutSchedule = query({
+    args: { batchId: v.id("batches") },
+    handler: async (ctx, args) => {
+        const authUserId = await getAuthUserId(ctx);
+        if (!authUserId) return null;
+
+        const batch = await ctx.db.get(args.batchId);
+        if (!batch) return null;
+
+        const members = await ctx.db
+            .query("batchMembers")
+            .withIndex("by_batchId", (q) => q.eq("batchId", args.batchId))
+            .collect();
+
+        // Sort by payoutMonthIndex/Round (if locked manual) or payoutMonth (if locked random) or just by memberNumber
         members.sort((a, b) => {
+            if (a.payoutMonthIndex && b.payoutMonthIndex) {
+                if (a.payoutMonthIndex !== b.payoutMonthIndex) {
+                    return a.payoutMonthIndex - b.payoutMonthIndex;
+                }
+                return (a.payoutRoundIndex ?? 0) - (b.payoutRoundIndex ?? 0);
+            }
             if (a.payoutMonth && b.payoutMonth) return a.payoutMonth - b.payoutMonth;
             return a.memberNumber - b.memberNumber;
         });
 
-        return members.map(m => ({
-            displayName: m.displayName,
-            payoutMonth: m.payoutMonth,
-            payoutStatus: m.payoutStatus,
-            paidAt: m.paidAt,
-        }));
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+        return {
+            payoutAssignmentMode: batch.payoutAssignmentMode,
+            members: members.map(m => {
+                let label = "-";
+                if (m.payoutMonthIndex) {
+                    const monthName = months[m.payoutMonthIndex - 1];
+                    label = m.payoutRoundIndex ? `${monthName} — Round ${m.payoutRoundIndex}` : monthName;
+                } else if (m.payoutMonth) {
+                    const monthNum = m.payoutMonth;
+                    label = monthNum <= 12 ? months[monthNum - 1] : `Period ${monthNum}`;
+                }
+
+                return {
+                    _id: m._id,
+                    displayName: m.displayName,
+                    payoutMonthIndex: m.payoutMonthIndex,
+                    payoutRoundIndex: m.payoutRoundIndex,
+                    payoutMonth: m.payoutMonth,
+                    payoutLabel: label,
+                    payoutStatus: m.payoutStatus,
+                    paidAt: m.paidAt,
+                };
+            }),
+        };
     },
 });
 

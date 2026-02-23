@@ -27,6 +27,7 @@ export default defineSchema({
     frequency: v.optional(v.union(v.literal("weekly"), v.literal("monthly"))),
     duration: v.optional(v.number()),
     amount: v.optional(v.number()),
+    payoutAssignmentMode: v.optional(v.union(v.literal("manual_selection"), v.literal("randomized"))),
     payoutOrderLocked: v.optional(v.boolean()),
     cycleStartDate: v.optional(v.number()),
     fairnessSeedCommitHash: v.optional(v.string()),
@@ -46,6 +47,10 @@ export default defineSchema({
     displayName: v.string(),
     joinedAt: v.number(),
     payoutMonth: v.optional(v.number()),
+    requestedMonthIndex: v.optional(v.number()),
+    requestedRoundIndex: v.optional(v.number()),
+    payoutMonthIndex: v.optional(v.number()),
+    payoutRoundIndex: v.optional(v.number()),
     payoutStatus: v.optional(v.union(v.literal("pending"), v.literal("paid"))),
     paidAt: v.optional(v.number()),
   })

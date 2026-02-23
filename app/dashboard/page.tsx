@@ -27,6 +27,11 @@ export default function DashboardPage() {
         openBatch ? { batchId: openBatch._id } : "skip"
     );
 
+    const payoutAvailability = useQuery(api.batches.getOpenBatchPayoutAvailability);
+    const setRequestedPayoutMonth = useMutation(api.batches.setRequestedPayoutMonth);
+    const clearRequestedPayoutMonth = useMutation(api.batches.clearRequestedPayoutMonth);
+    const [settingMonth, setSettingMonth] = useState(false);
+
     const ensureInitialBatch = useMutation(api.batches.ensureInitialBatch);
     const joinOpenBatch = useMutation(api.batches.joinOpenBatch);
     const adminCloseBatch = useMutation(api.batches.adminCloseBatch);
@@ -457,11 +462,87 @@ export default function DashboardPage() {
 
                                         {/* Member actions */}
                                         {isOpen && isMemberOfThis && (
-                                            <div className="space-y-2">
+                                            <div className="space-y-4">
                                                 <div className="text-center py-2.5 rounded-lg text-sm font-medium"
                                                     style={{ background: "var(--secondary)", color: "var(--success)" }}>
                                                     ✓ You&apos;re a member
                                                 </div>
+
+                                                {payoutAvailability && payoutAvailability.batchId === batch._id && (
+                                                    <div className="p-4 rounded-xl border text-sm" style={{ background: "var(--background)", borderColor: "var(--border)" }}>
+                                                        <div className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>Payout Month (Optional)</div>
+                                                        <p className="text-[11px] mb-3 leading-relaxed" style={{ color: "var(--muted-foreground)" }}>
+                                                            If anyone selects a month, the schedule won&apos;t be randomized when the batch closes.
+                                                        </p>
+
+                                                        {payoutAvailability.myReservation ? (
+                                                            <div className="flex items-center justify-between p-3 rounded-lg border bg-green-50 dark:bg-green-900/20" style={{ borderColor: "var(--success)" }}>
+                                                                <div>
+                                                                    <div className="text-xs text-green-700 dark:text-green-400 font-medium">Your Payout:</div>
+                                                                    <div className="font-bold text-green-800 dark:text-green-300">
+                                                                        {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][payoutAvailability.myReservation.monthIndex - 1]}
+                                                                        — Round {payoutAvailability.myReservation.roundIndex}
+                                                                    </div>
+                                                                </div>
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        setSettingMonth(true);
+                                                                        try {
+                                                                            await clearRequestedPayoutMonth({ batchId: batch._id });
+                                                                            toast.success("Selection cleared");
+                                                                        } catch (e: any) {
+                                                                            toast.error(e.message);
+                                                                        } finally {
+                                                                            setSettingMonth(false);
+                                                                        }
+                                                                    }}
+                                                                    disabled={settingMonth}
+                                                                    className="text-xs px-3 py-1.5 rounded-lg border bg-white dark:bg-slate-800 transition-all hover:bg-slate-100 dark:hover:bg-slate-700"
+                                                                >
+                                                                    Clear
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="relative">
+                                                                <select
+                                                                    disabled={settingMonth}
+                                                                    value=""
+                                                                    onChange={async (e) => {
+                                                                        if (!e.target.value) return;
+                                                                        setSettingMonth(true);
+                                                                        try {
+                                                                            const res = await setRequestedPayoutMonth({ batchId: batch._id, monthIndex: Number(e.target.value) });
+                                                                            const mStr = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][res.monthIndex - 1];
+                                                                            toast.success(`Reserved ${mStr} — Round ${res.roundIndex}`);
+                                                                        } catch (err: any) {
+                                                                            toast.error(err.message);
+                                                                        } finally {
+                                                                            setSettingMonth(false);
+                                                                        }
+                                                                    }}
+                                                                    className="w-full appearance-none p-3 rounded-xl border text-sm font-medium transition-all focus:ring-2 focus:ring-primary focus:outline-none"
+                                                                    style={{ borderColor: "var(--border)", background: "var(--card)", color: "var(--foreground)" }}
+                                                                >
+                                                                    <option value="" disabled>Select Month...</option>
+                                                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => {
+                                                                        const info = payoutAvailability.availabilityByMonth[m];
+                                                                        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                                                                        const isFull = info.remaining <= 0;
+                                                                        return (
+                                                                            <option key={m} value={m} disabled={isFull}>
+                                                                                {monthNames[m - 1]} {isFull ? "(Full)" : `(${info.remaining} left)`}
+                                                                            </option>
+                                                                        );
+                                                                    })}
+                                                                </select>
+                                                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-muted-foreground">
+                                                                    ▼
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+
                                                 <button onClick={() => openLeaveDialog(batch._id)}
                                                     className="w-full py-2 rounded-lg text-xs font-medium border transition-all hover:bg-red-50"
                                                     style={{ color: "var(--destructive)", borderColor: "var(--destructive)" }}>
