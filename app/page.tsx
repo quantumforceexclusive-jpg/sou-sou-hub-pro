@@ -19,13 +19,8 @@ export default function HomePage() {
 
   // Redirect to dashboard if already authenticated
   useEffect(() => {
-    // We only redirect if authenticated and not actively interacting with the form
-    // (A hacky but effective way is checking if the auth-submit-btn is currently disabled/loading)
-    const btn = document.getElementById("auth-submit-btn") as HTMLButtonElement | null;
-    const isActivelySubmitting = btn?.disabled === true;
-
-    if (isAuthenticated && !isLoading && !isActivelySubmitting) {
-      router.push("/dashboard");
+    if (isAuthenticated && !isLoading) {
+      router.replace("/dashboard");
     }
   }, [isAuthenticated, isLoading, router]);
 
@@ -193,7 +188,7 @@ export default function HomePage() {
             >
               <AuthCard
                 onSuccess={() => {
-                  router.push("/dashboard");
+                  router.replace("/dashboard");
                 }}
               />
             </div>

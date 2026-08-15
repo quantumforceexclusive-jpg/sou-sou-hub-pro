@@ -96,13 +96,19 @@ export function AuthCard({ onSuccess }: AuthCardProps) {
                 console.warn("Profile creation deferred — will auto-create on next sign-in.");
             }
 
+            if (!profileCreated) {
+                throw new Error("Signed in, but profile setup is still syncing. Please try again in a moment.");
+            }
+
             toast.success(mode === "signUp" ? "Account created successfully!" : "Welcome back!");
+            setLoading(false);
 
             if (onSuccess) {
                 onSuccess();
             } else {
-                router.push("/dashboard");
+                router.replace("/dashboard");
             }
+            return;
         } catch (error: unknown) {
             const message =
                 error instanceof Error ? error.message : "Authentication failed";

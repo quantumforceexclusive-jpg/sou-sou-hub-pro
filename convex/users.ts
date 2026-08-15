@@ -13,7 +13,21 @@ export const createOrGetUser = mutation({
         inviteCode: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
-        const authUserId = await getAuthUserId(ctx);
+        let authUserId = await getAuthUserId(ctx);
+        if (!authUserId) {
+            const hasExistingProfile = (await ctx.db.query("profiles").first()) !== null;
+            const isBootstrapAdmin = !hasExistingProfile && !args.inviteCode;
+
+            if (isBootstrapAdmin) {
+                const bootstrapAccount = await ctx.db
+                    .query("authAccounts")
+                    .withIndex("providerAndAccountId", (q) =>
+                        q.eq("provider", "password").eq("providerAccountId", args.email)
+                    )
+                    .unique();
+                authUserId = bootstrapAccount?.userId ?? null;
+            }
+        }
         if (!authUserId) {
             // Return null instead of throwing — the client retries until
             // the Convex WebSocket has synced the auth token.
