@@ -45,7 +45,6 @@ export default function DashboardPage() {
     const [deletingBatchId, setDeletingBatchId] = useState<Id<"batches"> | null>(null);
     const [initialized, setInitialized] = useState(false);
     const [profileBootstrapStarted, setProfileBootstrapStarted] = useState(false);
-    const [allowUnauthenticatedRedirect, setAllowUnauthenticatedRedirect] = useState(false);
 
     // Leave code dialog state
     const [leaveDialogBatchId, setLeaveDialogBatchId] = useState<Id<"batches"> | null>(null);
@@ -61,25 +60,6 @@ export default function DashboardPage() {
     const [settingsDuration, setSettingsDuration] = useState(12);
     const [settingsAmount, setSettingsAmount] = useState(1000);
     const [savingSettings, setSavingSettings] = useState(false);
-
-    useEffect(() => {
-        if (authLoading || isAuthenticated || user !== null) {
-            setAllowUnauthenticatedRedirect(false);
-            return;
-        }
-
-        const timeout = window.setTimeout(() => {
-            setAllowUnauthenticatedRedirect(true);
-        }, 3000);
-
-        return () => window.clearTimeout(timeout);
-    }, [authLoading, isAuthenticated, user]);
-
-    useEffect(() => {
-        if (allowUnauthenticatedRedirect && !isAuthenticated && user === null) {
-            router.replace("/");
-        }
-    }, [allowUnauthenticatedRedirect, isAuthenticated, user, router]);
 
     useEffect(() => {
         if (!isAuthenticated || user !== null || profileBootstrapStarted) return;
@@ -199,7 +179,17 @@ export default function DashboardPage() {
         }
     };
 
-    if (authLoading || !isAuthenticated) {
+    useEffect(() => {
+        if (authLoading || user !== null || profileBootstrapStarted) return;
+
+        const timeout = window.setTimeout(() => {
+            router.replace("/");
+        }, 10000);
+
+        return () => window.clearTimeout(timeout);
+    }, [authLoading, user, profileBootstrapStarted, router]);
+
+    if (authLoading || user === undefined || user === null) {
         return (
             <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--background)" }}>
                 <div className="flex items-center gap-3">

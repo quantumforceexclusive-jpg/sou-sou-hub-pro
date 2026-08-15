@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function AdminPage() {
-    const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
+    const { isLoading: authLoading } = useConvexAuth();
     const router = useRouter();
 
     const adminAccess = useQuery(api.admin.checkAdminAccess);
@@ -82,14 +82,17 @@ export default function AdminPage() {
 
     // Redirect logic
     useEffect(() => {
-        if (!authLoading && !isAuthenticated) {
-            router.push("/");
+        if (authLoading || adminAccess === undefined) {
             return;
         }
-        if (adminAccess !== undefined && !adminAccess.isAdmin) {
-            router.push(adminAccess.isAuthenticated ? "/dashboard" : "/");
+        if (!adminAccess.isAuthenticated) {
+            const timeout = window.setTimeout(() => router.replace("/"), 10000);
+            return () => window.clearTimeout(timeout);
         }
-    }, [authLoading, isAuthenticated, adminAccess, router]);
+        if (!adminAccess.isAdmin) {
+            router.replace("/dashboard");
+        }
+    }, [authLoading, adminAccess, router]);
 
     const handleUpdateRole = async (userId: Id<"profiles">) => {
         setSavingRole(true);
