@@ -45,6 +45,7 @@ export default function DashboardPage() {
     const [deletingBatchId, setDeletingBatchId] = useState<Id<"batches"> | null>(null);
     const [initialized, setInitialized] = useState(false);
     const [profileBootstrapStarted, setProfileBootstrapStarted] = useState(false);
+    const [allowUnauthenticatedRedirect, setAllowUnauthenticatedRedirect] = useState(false);
 
     // Leave code dialog state
     const [leaveDialogBatchId, setLeaveDialogBatchId] = useState<Id<"batches"> | null>(null);
@@ -62,10 +63,23 @@ export default function DashboardPage() {
     const [savingSettings, setSavingSettings] = useState(false);
 
     useEffect(() => {
-        if (!authLoading && !isAuthenticated) {
-            router.push("/");
+        if (authLoading || isAuthenticated || user !== null) {
+            setAllowUnauthenticatedRedirect(false);
+            return;
         }
-    }, [isAuthenticated, authLoading, router]);
+
+        const timeout = window.setTimeout(() => {
+            setAllowUnauthenticatedRedirect(true);
+        }, 3000);
+
+        return () => window.clearTimeout(timeout);
+    }, [authLoading, isAuthenticated, user]);
+
+    useEffect(() => {
+        if (allowUnauthenticatedRedirect && !isAuthenticated && user === null) {
+            router.replace("/");
+        }
+    }, [allowUnauthenticatedRedirect, isAuthenticated, user, router]);
 
     useEffect(() => {
         if (!isAuthenticated || user !== null || profileBootstrapStarted) return;

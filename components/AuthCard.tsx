@@ -114,7 +114,6 @@ export function AuthCard({ onSuccess }: AuthCardProps) {
             } else {
                 router.replace("/dashboard");
             }
-            window.location.assign("/dashboard");
             return;
         } catch (error: unknown) {
             const message =
