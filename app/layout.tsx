@@ -3,6 +3,7 @@ import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { ConvexClientProvider } from "./ConvexClientProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
   keywords: ["sou-sou", "savings", "financial management", "group savings", "Caribbean"],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
@@ -31,9 +32,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${playfair.variable} antialiased`}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <ConvexClientProvider>{children}</ConvexClientProvider>
-        </ThemeProvider>
+        <ConvexAuthNextjsServerProvider>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            <ConvexClientProvider>{children}</ConvexClientProvider>
+          </ThemeProvider>
+        </ConvexAuthNextjsServerProvider>
       </body>
     </html>
   );
