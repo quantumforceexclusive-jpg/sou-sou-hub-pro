@@ -1,4 +1,5 @@
-import { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
 
 // ——— Fairness & Randomization Logic ———
 export async function generateFairnessData() {
@@ -29,14 +30,17 @@ export function cyrb128(str: string) {
     h2 = Math.imul(h4 ^ (h2 >>> 22), 2869860233);
     h3 = Math.imul(h1 ^ (h3 >>> 17), 951274213);
     h4 = Math.imul(h2 ^ (h4 >>> 19), 2716044179);
-    h1 ^= (h2 ^ h3 ^ h4), h2 ^= h1, h3 ^= h1, h4 ^= h1;
+    h1 ^= h2 ^ h3 ^ h4;
+    h2 ^= h1;
+    h3 ^= h1;
+    h4 ^= h1;
     return [h1 >>> 0, h2 >>> 0, h3 >>> 0, h4 >>> 0];
 }
 
 export function sfc32(a: number, b: number, c: number, d: number) {
     return function () {
         a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
-        let t = (a + b | 0) + d | 0;
+        const t = (a + b | 0) + d | 0;
         d = d + 1 | 0;
         a = b ^ b >>> 9;
         b = c + (c << 3) | 0;
@@ -46,14 +50,14 @@ export function sfc32(a: number, b: number, c: number, d: number) {
     }
 }
 
-export async function closeBatchAndRandomize(ctx: any, batchId: Id<"batches">) {
+export async function closeBatchAndRandomize(ctx: MutationCtx, batchId: Id<"batches">) {
     const batch = await ctx.db.get(batchId);
     if (!batch || batch.status === "closed") return;
 
     // Get members
     const members = await ctx.db
         .query("batchMembers")
-        .withIndex("by_batchId", (q: any) => q.eq("batchId", batchId))
+        .withIndex("by_batchId", (q) => q.eq("batchId", batchId))
         .collect();
 
     if (members.length === 0) {
@@ -77,13 +81,13 @@ export async function closeBatchAndRandomize(ctx: any, batchId: Id<"batches">) {
     }
 
     // Check if any manual reservations exist
-    const hasAnyReservation = members.some((m: any) => m.requestedMonthIndex != null);
+    const hasAnyReservation = members.some((m) => m.requestedMonthIndex != null);
 
     const memberCount = members.length;
 
-    let payoutAssignmentMode = "randomized";
-    let commitHashFinal = undefined;
-    let secretFinal = undefined;
+    let payoutAssignmentMode: NonNullable<Doc<"batches">["payoutAssignmentMode"]> = "randomized";
+    let commitHashFinal: string | undefined;
+    let secretFinal: string | undefined;
 
     if (hasAnyReservation) {
         payoutAssignmentMode = "manual_selection";
@@ -114,9 +118,9 @@ export async function closeBatchAndRandomize(ctx: any, batchId: Id<"batches">) {
         }
 
         // Remaining unreserved members
-        const unassigned = members.filter((m: any) => !assignedIds.has(m._id as string));
+        const unassigned = members.filter((m) => !assignedIds.has(m._id));
         // Deterministic sort by memberNumber asc
-        unassigned.sort((a: any, b: any) => a.memberNumber - b.memberNumber);
+        unassigned.sort((a, b) => a.memberNumber - b.memberNumber);
 
         // Find available slots
         const availableSlots = allSlots.filter(s => !usedSlots.has(`${s.m}-${s.r}`));
@@ -160,7 +164,7 @@ export async function closeBatchAndRandomize(ctx: any, batchId: Id<"batches">) {
     }
 
     // Set batch to closed & locked
-    const batchPatchData: any = {
+    const batchPatchData: Partial<Doc<"batches">> = {
         status: "closed",
         payoutOrderLocked: true,
         payoutAssignmentMode,

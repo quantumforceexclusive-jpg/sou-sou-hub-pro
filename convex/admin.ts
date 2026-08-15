@@ -1,15 +1,16 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 
 // ——— Helper: verify caller is admin ———
-async function requireAdmin(ctx: any) {
+async function requireAdmin(ctx: QueryCtx | MutationCtx) {
     const authUserId = await getAuthUserId(ctx);
     if (!authUserId) throw new Error("Not authenticated");
 
     const profile = await ctx.db
         .query("profiles")
-        .withIndex("by_authUserId", (q: any) => q.eq("authUserId", authUserId))
+        .withIndex("by_authUserId", (q) => q.eq("authUserId", authUserId))
         .unique();
 
     if (!profile || profile.role !== "admin") {

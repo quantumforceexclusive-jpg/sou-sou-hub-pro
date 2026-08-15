@@ -490,8 +490,8 @@ export default function DashboardPage() {
                                                                         try {
                                                                             await clearRequestedPayoutMonth({ batchId: batch._id });
                                                                             toast.success("Selection cleared");
-                                                                        } catch (e: any) {
-                                                                            toast.error(e.message);
+                                                                        } catch (error: unknown) {
+                                                                            toast.error(error instanceof Error ? error.message : "Failed to clear selection");
                                                                         } finally {
                                                                             setSettingMonth(false);
                                                                         }
@@ -514,8 +514,8 @@ export default function DashboardPage() {
                                                                             const res = await setRequestedPayoutMonth({ batchId: batch._id, monthIndex: Number(e.target.value) });
                                                                             const mStr = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][res.monthIndex - 1];
                                                                             toast.success(`Reserved ${mStr} — Round ${res.roundIndex}`);
-                                                                        } catch (err: any) {
-                                                                            toast.error(err.message);
+                                                                        } catch (error: unknown) {
+                                                                            toast.error(error instanceof Error ? error.message : "Failed to reserve month");
                                                                         } finally {
                                                                             setSettingMonth(false);
                                                                         }

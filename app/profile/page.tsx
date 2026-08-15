@@ -333,7 +333,7 @@ export default function ProfilePage() {
                                     </div>
                                 ) : !myMembership || myMembership.length === 0 ? (
                                     <p className="text-muted-foreground text-center py-6">
-                                        You haven't joined any batches yet.
+                                        You haven&apos;t joined any batches yet.
                                     </p>
                                 ) : (
                                     <div className="grid gap-4 sm:grid-cols-2">

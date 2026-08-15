@@ -71,7 +71,7 @@ export function ContactSection() {
                 subject: "General Question",
                 message: "",
             }));
-        } catch (error) {
+        } catch {
             toast.error("Failed to send message. Please try again.");
         } finally {
             setIsSubmitting(false);

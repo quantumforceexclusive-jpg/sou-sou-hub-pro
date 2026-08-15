@@ -873,7 +873,6 @@ export default function AdminPage() {
                         {openBatch ? (
                             <PaymentVerificationPanel
                                 batchId={openBatch._id}
-                                batchNumber={openBatch.number}
                                 onVerify={handleVerifyPayment}
                             />
                         ) : (
@@ -1036,11 +1035,9 @@ function LeaveRequestsPanel({
 
 function PaymentVerificationPanel({
     batchId,
-    batchNumber,
     onVerify,
 }: {
     batchId: Id<"batches">;
-    batchNumber: number;
     onVerify: (userId: Id<"profiles">, batchId: Id<"batches">, verified: boolean) => void;
 }) {
     const statuses = useQuery(api.banking.listPaymentStatuses, { batchId });

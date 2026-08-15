@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { closeBatchAndRandomize } from "./fairness";
+import type { Doc } from "./_generated/dataModel";
 
 /**
  * Ensure an initial batch exists. If no batches exist, creates Batch #1.
@@ -955,7 +956,7 @@ export const adminCreateBatch = mutation({
 
         // Find the latest batch to determine the sequence number
         const batches = await ctx.db.query("batches").collect();
-        const latestBatch = batches.reduce((latest: any, current) => {
+        const latestBatch = batches.reduce<Doc<"batches"> | null>((latest, current) => {
             if (!latest) return current;
             return current.number > latest.number ? current : latest;
         }, null);

@@ -13,14 +13,15 @@ export function DashboardStatsRow() {
 
     // Use the latest batch the user is in (usually the first one returned or we can sort)
     const stats = statsList && statsList.length > 0 ? statsList[statsList.length - 1] : null;
+    const nextPayoutDate = stats?.nextPayoutDate;
 
     // Countdown logic
     useEffect(() => {
-        if (!stats || !stats.nextPayoutDate) return;
+        if (!nextPayoutDate) return;
 
         const interval = setInterval(() => {
             const now = Date.now();
-            const diff = stats.nextPayoutDate! - now;
+            const diff = nextPayoutDate - now;
             if (diff <= 0) {
                 setTimeLeft("Payout due!");
                 clearInterval(interval);
@@ -39,7 +40,7 @@ export function DashboardStatsRow() {
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [stats?.nextPayoutDate]);
+    }, [nextPayoutDate]);
 
     if (!statsList || statsList.length === 0 || !stats) return null;
 
@@ -85,8 +86,8 @@ export function BatchSchedule({ batchId, isAdmin }: { batchId: Id<"batches">, is
         try {
             await markPaid({ batchId, memberId });
             toast.success("Marked paid successfully.");
-        } catch (e: any) {
-            toast.error(e.message);
+        } catch (error: unknown) {
+            toast.error(error instanceof Error ? error.message : "Failed to mark payout paid.");
         }
     };
 
@@ -113,7 +114,7 @@ export function BatchSchedule({ batchId, isAdmin }: { batchId: Id<"batches">, is
                         </tr>
                     </thead>
                     <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
-                        {schedule.map((row: any) => (
+                        {schedule.map((row) => (
                             <tr key={row.displayName} style={{ background: row.payoutStatus === "paid" ? "var(--muted)" : "transparent" }}>
                                 <td className="px-3 py-2 font-medium" style={{ color: "var(--foreground)" }}>
                                     {row.payoutLabel}
