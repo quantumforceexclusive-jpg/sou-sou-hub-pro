@@ -23,11 +23,13 @@ export function AuthCard({ onSuccess }: AuthCardProps) {
     const { signIn } = useAuthActions();
     const createOrGetUser = useMutation(api.users.createOrGetUser);
     const validateInviteCode = useQuery(api.users.validateInviteCode, { code: inviteCode });
+    const canBootstrapAdmin = useQuery(api.users.canBootstrapAdmin);
     const router = useRouter();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
+        const normalizedEmail = email.trim().toLowerCase();
 
         try {
             if (mode === "signUp") {
@@ -36,7 +38,13 @@ export function AuthCard({ onSuccess }: AuthCardProps) {
                     setLoading(false);
                     return;
                 }
-                if (!inviteCode.trim()) {
+                const requiresInvite = canBootstrapAdmin !== true;
+                if (canBootstrapAdmin === undefined) {
+                    toast.error("Checking signup access. Please try again in a moment.");
+                    setLoading(false);
+                    return;
+                }
+                if (requiresInvite && !inviteCode.trim()) {
                     toast.error("Please enter an invite code to sign up.");
                     setLoading(false);
                     return;
@@ -46,21 +54,21 @@ export function AuthCard({ onSuccess }: AuthCardProps) {
                     setLoading(false);
                     return;
                 }
-                if (validateInviteCode === false) {
+                if (requiresInvite && validateInviteCode !== true) {
                     toast.error("Invalid or already used invite code.");
                     setLoading(false);
                     return;
                 }
                 // Sign up with password provider
                 await signIn("password", {
-                    email,
+                    email: normalizedEmail,
                     password,
                     flow: "signUp",
                 });
             } else {
                 // Sign in
                 await signIn("password", {
-                    email,
+                    email: normalizedEmail,
                     password,
                     flow: "signIn",
                 });
@@ -72,9 +80,9 @@ export function AuthCard({ onSuccess }: AuthCardProps) {
 
             for (let i = 0; i < 8; i++) {
                 const result = await createOrGetUser({
-                    name: mode === "signUp" ? name.trim() : email.split("@")[0],
-                    email,
-                    inviteCode: mode === "signUp" ? inviteCode.trim() : undefined,
+                    name: mode === "signUp" ? name.trim() : normalizedEmail.split("@")[0],
+                    email: normalizedEmail,
+                    inviteCode: mode === "signUp" && canBootstrapAdmin !== true ? inviteCode.trim() : undefined,
                 });
                 if (result !== null) {
                     profileCreated = true;
@@ -125,7 +133,7 @@ export function AuthCard({ onSuccess }: AuthCardProps) {
                     className="text-xl font-semibold"
                     style={{ color: "var(--foreground)" }}
                 >
-                    {mode === "signIn" ? "Sign In" : "Create Account"}
+                    {mode === "signIn" ? "Sign In" : canBootstrapAdmin ? "Create Admin Account" : "Create Account"}
                 </h3>
             </div>
 
@@ -153,7 +161,7 @@ export function AuthCard({ onSuccess }: AuthCardProps) {
                     </div>
                 )}
 
-                {mode === "signUp" && (
+                {mode === "signUp" && canBootstrapAdmin !== true && (
                     <div>
                         <label
                             htmlFor="inviteCode"

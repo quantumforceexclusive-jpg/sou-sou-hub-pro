@@ -30,22 +30,28 @@ export const createOrGetUser = mutation({
             return existing._id;
         }
 
-        // Must provide an invite code for a new account.
-        if (!args.inviteCode) {
+        const hasExistingProfile = (await ctx.db.query("profiles").first()) !== null;
+        const isBootstrapAdmin = !hasExistingProfile && !args.inviteCode;
+
+        // The first account bootstraps the admin user. After that, signups require invite codes.
+        if (!args.inviteCode && !isBootstrapAdmin) {
             throw new Error("An invite code is required to sign up.");
         }
 
-        // Validate invite code
-        const encoder = new TextEncoder();
-        const data = encoder.encode(args.inviteCode.trim().toUpperCase());
-        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const submittedHash = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+        let invite = null;
+        if (args.inviteCode) {
+            // Validate invite code
+            const encoder = new TextEncoder();
+            const data = encoder.encode(args.inviteCode.trim().toUpperCase());
+            const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const submittedHash = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 
-        const invite = await ctx.db.query("inviteCodes").withIndex("by_codeHash", q => q.eq("codeHash", submittedHash)).unique();
+            invite = await ctx.db.query("inviteCodes").withIndex("by_codeHash", q => q.eq("codeHash", submittedHash)).unique();
 
-        if (!invite || invite.used) {
-            throw new Error("Invalid or already used invite code.");
+            if (!invite || invite.used) {
+                throw new Error("Invalid or already used invite code.");
+            }
         }
 
         // Create new user profile
@@ -53,20 +59,33 @@ export const createOrGetUser = mutation({
         const profileId = await ctx.db.insert("profiles", {
             name: args.name,
             email: args.email,
-            role: "member",
+            role: isBootstrapAdmin ? "admin" : "member",
             authUserId,
             createdAt: now,
             updatedAt: now,
         });
 
         // Mark invite code as used
-        await ctx.db.patch(invite._id, {
-            used: true,
-            usedBy: profileId,
-            usedAt: now,
-        });
+        if (invite) {
+            await ctx.db.patch(invite._id, {
+                used: true,
+                usedBy: profileId,
+                usedAt: now,
+            });
+        }
 
         return profileId;
+    },
+});
+
+/**
+ * The very first signup can create the initial admin account without an invite code.
+ */
+export const canBootstrapAdmin = query({
+    args: {},
+    handler: async (ctx) => {
+        const existingProfile = await ctx.db.query("profiles").first();
+        return existingProfile === null;
     },
 });
 
@@ -76,6 +95,9 @@ export const createOrGetUser = mutation({
 export const validateInviteCode = query({
     args: { code: v.string() },
     handler: async (ctx, args) => {
+        const existingProfile = await ctx.db.query("profiles").first();
+        if (!existingProfile && !args.code.trim()) return true;
+
         if (!args.code.trim()) return false;
 
         const encoder = new TextEncoder();
