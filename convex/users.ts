@@ -2,6 +2,12 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
+const ADMIN_EMAILS = ["anslemb7615@outlook.com"];
+
+function isAdminEmail(email: string): boolean {
+    return ADMIN_EMAILS.includes(email.trim().toLowerCase());
+}
+
 /**
  * Create or retrieve user profile after authentication.
  * Called after sign-up to store user profile data.
@@ -13,16 +19,17 @@ export const createOrGetUser = mutation({
         inviteCode: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
+        const normalizedEmail = args.email.trim().toLowerCase();
         let authUserId = await getAuthUserId(ctx);
         if (!authUserId) {
             const hasExistingProfile = (await ctx.db.query("profiles").first()) !== null;
-            const isBootstrapAdmin = !hasExistingProfile && !args.inviteCode;
+            const isBootstrapAdmin = (!hasExistingProfile || isAdminEmail(normalizedEmail)) && !args.inviteCode;
 
             if (isBootstrapAdmin) {
                 const bootstrapAccount = await ctx.db
                     .query("authAccounts")
                     .withIndex("providerAndAccountId", (q) =>
-                        q.eq("provider", "password").eq("providerAccountId", args.email)
+                        q.eq("provider", "password").eq("providerAccountId", normalizedEmail)
                     )
                     .unique();
                 authUserId = bootstrapAccount?.userId ?? null;
@@ -41,13 +48,17 @@ export const createOrGetUser = mutation({
             .unique();
 
         if (existing) {
+            // Ensure admin role for configured admin emails
+            if (isAdminEmail(normalizedEmail) && existing.role !== "admin") {
+                await ctx.db.patch(existing._id, { role: "admin", updatedAt: Date.now() });
+            }
             return existing._id;
         }
 
         const hasExistingProfile = (await ctx.db.query("profiles").first()) !== null;
-        const isBootstrapAdmin = !hasExistingProfile && !args.inviteCode;
+        const isBootstrapAdmin = !hasExistingProfile || isAdminEmail(normalizedEmail);
 
-        // The first account bootstraps the admin user. After that, signups require invite codes.
+        // The first account or configured admin email can sign up without an invite code.
         if (!args.inviteCode && !isBootstrapAdmin) {
             throw new Error("An invite code is required to sign up.");
         }
@@ -72,7 +83,7 @@ export const createOrGetUser = mutation({
         const now = Date.now();
         const profileId = await ctx.db.insert("profiles", {
             name: args.name,
-            email: args.email,
+            email: normalizedEmail,
             role: isBootstrapAdmin ? "admin" : "member",
             authUserId,
             createdAt: now,
@@ -93,11 +104,34 @@ export const createOrGetUser = mutation({
 });
 
 /**
- * The very first signup can create the initial admin account without an invite code.
+ * Promote an existing user profile to admin by email.
+ */
+export const promoteToAdmin = mutation({
+    args: { email: v.string() },
+    handler: async (ctx, args) => {
+        const normalized = args.email.trim().toLowerCase();
+        const all = await ctx.db.query("profiles").collect();
+        const profile = all.find(p => p.email.toLowerCase() === normalized);
+        if (!profile) {
+            return { success: false, message: `No profile found for ${normalized}` };
+        }
+        await ctx.db.patch(profile._id, {
+            role: "admin",
+            updatedAt: Date.now(),
+        });
+        return { success: true, message: `Successfully promoted ${profile.name} (${profile.email}) to admin.` };
+    },
+});
+
+/**
+ * The very first signup or designated admin email can create account without an invite code.
  */
 export const canBootstrapAdmin = query({
-    args: {},
-    handler: async (ctx) => {
+    args: { email: v.optional(v.string()) },
+    handler: async (ctx, args) => {
+        if (args.email && isAdminEmail(args.email)) {
+            return true;
+        }
         const existingProfile = await ctx.db.query("profiles").first();
         return existingProfile === null;
     },

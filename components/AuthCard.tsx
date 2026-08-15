@@ -23,7 +23,7 @@ export function AuthCard({ onSuccess }: AuthCardProps) {
     const { signIn } = useAuthActions();
     const createOrGetUser = useMutation(api.users.createOrGetUser);
     const validateInviteCode = useQuery(api.users.validateInviteCode, { code: inviteCode });
-    const canBootstrapAdmin = useQuery(api.users.canBootstrapAdmin);
+    const canBootstrapAdmin = useQuery(api.users.canBootstrapAdmin, { email: email.trim().toLowerCase() || undefined });
     const router = useRouter();
 
     const handleSubmit = async (e: React.FormEvent) => {
