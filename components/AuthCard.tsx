@@ -30,6 +30,11 @@ export function AuthCard({ onSuccess }: AuthCardProps) {
         e.preventDefault();
         setLoading(true);
         const normalizedEmail = email.trim().toLowerCase();
+        const pendingProfile = {
+            name: mode === "signUp" ? name.trim() : normalizedEmail.split("@")[0],
+            email: normalizedEmail,
+            inviteCode: mode === "signUp" && canBootstrapAdmin !== true ? inviteCode.trim() : undefined,
+        };
 
         try {
             if (mode === "signUp") {
@@ -76,9 +81,10 @@ export function AuthCard({ onSuccess }: AuthCardProps) {
 
             // The Convex WebSocket sometimes takes a moment to sync the auth state after signIn resolves.
             // createOrGetUser returns null when auth isn't ready yet, so we retry silently.
-            let profileCreated = false;
+            window.localStorage.setItem("sou-sou-pending-profile", JSON.stringify(pendingProfile));
+            let profileCreated = true;
 
-            for (let i = 0; i < 8; i++) {
+            for (let i = 0; !profileCreated && i < 8; i++) {
                 const result = await createOrGetUser({
                     name: mode === "signUp" ? name.trim() : normalizedEmail.split("@")[0],
                     email: normalizedEmail,

@@ -38,11 +38,13 @@ export default function DashboardPage() {
     const adminUpdateBatchSettings = useMutation(api.batches.adminUpdateBatchSettings);
     const adminDeleteBatch = useMutation(api.batches.adminDeleteBatch);
     const verifyLeaveCode = useMutation(api.admin.verifyLeaveCode);
+    const createOrGetUser = useMutation(api.users.createOrGetUser);
 
     const [joiningBatch, setJoiningBatch] = useState(false);
     const [closingBatch, setClosingBatch] = useState(false);
     const [deletingBatchId, setDeletingBatchId] = useState<Id<"batches"> | null>(null);
     const [initialized, setInitialized] = useState(false);
+    const [profileBootstrapStarted, setProfileBootstrapStarted] = useState(false);
 
     // Leave code dialog state
     const [leaveDialogBatchId, setLeaveDialogBatchId] = useState<Id<"batches"> | null>(null);
@@ -64,6 +66,38 @@ export default function DashboardPage() {
             router.push("/");
         }
     }, [isAuthenticated, authLoading, router]);
+
+    useEffect(() => {
+        if (!isAuthenticated || user !== null || profileBootstrapStarted) return;
+
+        const stored = window.localStorage.getItem("sou-sou-pending-profile");
+        if (!stored) return;
+
+        setProfileBootstrapStarted(true);
+
+        let pendingProfile: {
+            name: string;
+            email: string;
+            inviteCode?: string;
+        };
+
+        try {
+            pendingProfile = JSON.parse(stored);
+        } catch {
+            window.localStorage.removeItem("sou-sou-pending-profile");
+            return;
+        }
+
+        void createOrGetUser(pendingProfile)
+            .then((profileId) => {
+                if (profileId) {
+                    window.localStorage.removeItem("sou-sou-pending-profile");
+                }
+            })
+            .catch((error: unknown) => {
+                toast.error(error instanceof Error ? error.message : "Failed to finish profile setup.");
+            });
+    }, [isAuthenticated, user, profileBootstrapStarted, createOrGetUser]);
 
     useEffect(() => {
         if (isAuthenticated && user && !initialized) {
